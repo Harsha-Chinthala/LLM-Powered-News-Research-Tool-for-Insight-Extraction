@@ -129,7 +129,7 @@ if query:
         with open(file_path, "rb") as f:
             vectorstore = pickle.load(f)
             retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-            chain = RetrievalQAWithSourcesChain.from_llm(
+            chain = RetrievalQAWithSourcesChain.from_chain_type(
                 llm=llm,
                 retriever=retriever,
                 chain_type="stuff",
