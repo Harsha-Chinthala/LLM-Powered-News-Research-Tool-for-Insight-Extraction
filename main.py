@@ -15,11 +15,21 @@ from bs4 import BeautifulSoup
 load_dotenv()  # Load environment variables
 
 
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
+
 def get_groq_api_key():
     secret_key = st.secrets.get("GROQ_API_KEY")
     if secret_key:
         return secret_key
     return os.getenv("GROQ_API_KEY")
+
+
+def get_groq_model():
+    secret_model = st.secrets.get("GROQ_MODEL")
+    if secret_model:
+        return secret_model
+    return os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL)
 
 
 def load_url_documents(urls):
@@ -50,6 +60,11 @@ def load_url_documents(urls):
 
     return documents
 
+
+@st.cache_resource(show_spinner=False)
+def get_embeddings():
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
 st.title("Article Research Tool 📈")
 st.sidebar.title("News Article URLs")
 
@@ -67,25 +82,41 @@ file_path = "faiss_store.pkl"
 
 main_placeholder = st.empty()
 
-# Initialize embedding model
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = None
+embedding_error = None
+
+try:
+    embeddings = get_embeddings()
+except Exception as exc:
+    embedding_error = exc
 
 groq_api_key = get_groq_api_key()
+groq_model = get_groq_model()
 llm = None
 
 if groq_api_key:
     llm = ChatGroq(
         api_key=groq_api_key,
         temperature=0.3,
-        model="llama3-70b-8192",
+        model=groq_model,
         max_tokens=300
     )
 else:
     st.warning("Set GROQ_API_KEY in your local .env file or Streamlit secrets to use the app.")
 
+if embedding_error:
+    st.error(
+        "The embedding model could not be loaded. "
+        "If this is running on Streamlit Cloud, use Python 3.11 and install the "
+        "`torchvision` dependency before processing URLs."
+    )
+    st.caption(str(embedding_error))
+
 if process_url_clicked:
     if llm is None:
         st.error("Missing GROQ_API_KEY. Add it before processing URLs.")
+    elif embeddings is None:
+        st.error("Embeddings are unavailable. Fix the deployment dependencies and try again.")
     elif not urls:
         st.error("Please enter at least one valid URL")
     else:
