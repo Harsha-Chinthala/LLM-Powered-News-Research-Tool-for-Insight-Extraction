@@ -76,9 +76,9 @@ llm = None
 if groq_api_key:
     llm = ChatGroq(
         api_key=groq_api_key,
-        temperature=0.9,
+        temperature=0.3,
         model="llama3-70b-8192",
-        max_tokens=500
+        max_tokens=300
     )
 else:
     st.warning("Set GROQ_API_KEY in your local .env file or Streamlit secrets to use the app.")
@@ -100,8 +100,8 @@ if process_url_clicked:
                 # Split data
                 text_splitter = RecursiveCharacterTextSplitter(
                     separators=['\n\n', '\n', '.', ','],
-                    chunk_size=500,  # Further reduced to avoid exceeding model token limit
-                    # chunk_overlap=60  # Increased overlap to preserve more context
+                    chunk_size=300,
+                    chunk_overlap=50,
                 )
                 main_placeholder.text("Text Splitter...Started...✅✅✅")
                 docs = text_splitter.split_documents(data)
@@ -128,8 +128,17 @@ if query:
     elif os.path.exists(file_path):
         with open(file_path, "rb") as f:
             vectorstore = pickle.load(f)
-            chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
-            result = chain.invoke({"question": query}, return_only_outputs=True)
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+            chain = RetrievalQAWithSourcesChain.from_llm(
+                llm=llm,
+                retriever=retriever,
+                chain_type="stuff",
+            )
+            try:
+                result = chain.invoke({"question": query}, return_only_outputs=True)
+            except Exception as e:
+                st.error(f"Error generating answer: {str(e)}")
+                st.stop()
             
             # Display answer
             st.header("Answer")
