@@ -2,13 +2,15 @@ import os
 import streamlit as st
 import pickle
 import time
+import requests
 from langchain_classic.chains import RetrievalQAWithSourcesChain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import UnstructuredURLLoader
+from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
 load_dotenv()  # Load environment variables
 
@@ -18,6 +20,35 @@ def get_groq_api_key():
     if secret_key:
         return secret_key
     return os.getenv("GROQ_API_KEY")
+
+
+def load_url_documents(urls):
+    documents = []
+
+    for url in urls:
+        response = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                )
+            },
+        )
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
+            tag.decompose()
+
+        text = " ".join(soup.stripped_strings)
+        if text:
+            documents.append(Document(page_content=text, metadata={"source": url}))
+
+    return documents
 
 st.title("Article Research Tool 📈")
 st.sidebar.title("News Article URLs")
@@ -60,9 +91,8 @@ if process_url_clicked:
     else:
         try:
             # Load data
-            loader = UnstructuredURLLoader(urls=urls)
             main_placeholder.text("Data Loading...Started...✅✅✅")
-            data = loader.load()
+            data = load_url_documents(urls)
             
             if not data:
                 st.error("No content could be extracted from the provided URLs")

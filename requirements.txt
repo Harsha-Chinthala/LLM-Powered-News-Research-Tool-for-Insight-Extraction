@@ -1,9 +1,13 @@
 streamlit
 langchain
 langchain-community
+langchain-core
+langchain-text-splitters
 langchain-huggingface
 langchain-groq
 faiss-cpu
 sentence-transformers
 unstructured
 python-dotenv
+requests
+beautifulsoup4
