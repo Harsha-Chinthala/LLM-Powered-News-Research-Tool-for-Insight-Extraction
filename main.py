@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables
 
+
+def get_groq_api_key():
+    secret_key = st.secrets.get("GROQ_API_KEY")
+    if secret_key:
+        return secret_key
+    return os.getenv("GROQ_API_KEY")
+
 st.title("Article Research Tool 📈")
 st.sidebar.title("News Article URLs")
 
@@ -32,15 +39,23 @@ main_placeholder = st.empty()
 # Initialize embedding model
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Initialize LLM
-llm = ChatGroq(
-    temperature=0.9,
-    model="llama3-70b-8192",
-    max_tokens=500
-)
+groq_api_key = get_groq_api_key()
+llm = None
+
+if groq_api_key:
+    llm = ChatGroq(
+        api_key=groq_api_key,
+        temperature=0.9,
+        model="llama3-70b-8192",
+        max_tokens=500
+    )
+else:
+    st.warning("Set GROQ_API_KEY in your local .env file or Streamlit secrets to use the app.")
 
 if process_url_clicked:
-    if not urls:
+    if llm is None:
+        st.error("Missing GROQ_API_KEY. Add it before processing URLs.")
+    elif not urls:
         st.error("Please enter at least one valid URL")
     else:
         try:
@@ -78,7 +93,9 @@ if process_url_clicked:
 
 query = main_placeholder.text_input("Question: ")
 if query:
-    if os.path.exists(file_path):
+    if llm is None:
+        st.error("Missing GROQ_API_KEY. Add it before asking questions.")
+    elif os.path.exists(file_path):
         with open(file_path, "rb") as f:
             vectorstore = pickle.load(f)
             chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
